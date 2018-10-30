@@ -14,8 +14,10 @@ import io.nuls.contract.sdk.Address;
 import io.nuls.contract.sdk.Block;
 import io.nuls.contract.sdk.Msg;
 
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static io.nuls.contract.sdk.Utils.emit;
@@ -45,7 +47,8 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
         require(title != null, "title can not be empty");
         require(desc != null, "desc can not be empty");
         require(nodeCommission >= 10 && nodeCommission <= 100, "nodeCommission should be between [10, 100]");
-        require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 1 hour");
+        //require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 1 hour");
+        require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 5 minutes");
 
         this.partnership = new Partnership(title, desc, nodeCommission, payoutInterval);
         this.pollingManager = new PollingManager(percentageOfParticipationToResolvePolling, percentageOfPositiveVotesToAcceptPolling);
@@ -97,9 +100,9 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
     public void changeParticipation(Address address, BigInteger participation, double commission) {
 
         Partner newPartner = this.getModifiedPartner(address, participation, commission);
-        List<Partner> partners = this.partnership.getPartners();
+        Collection<Partner> partners = this.partnership.getPartnerList();
 
-        if (partners.size() == 1 && partners.get(0).getAddress().equals(address)) {
+        if (partners.size() == 1 && partners.iterator().next().getAddress().equals(address)) {
 
             this.changePartnerParticipation(newPartner);
 
@@ -173,30 +176,31 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
             List<PartnerPayout> partnerPayouts = new ArrayList<PartnerPayout>();
 
-            List<Partner> partners = this.partnership.getPartners();
+            Collection<Partner> partners = this.partnership.getPartnerList();
             BigInteger totalParticipation = this.getTotalParticipation(partners);
 
-            for (int i = 0; i < partners.size(); i++) {
+            for (Partner partner : partners) {
 
-                Partner partner = partners.get(i);
                 BigInteger partnerParticipation = BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100))));
 
                 if (partnerParticipation.compareTo(BigInteger.ZERO) > 0) {
 
-                    BigInteger amount = payoutAmount.multiply(partnerParticipation).divide(totalParticipation);
+                    //BigInteger amount = payoutAmount.multiply(partnerParticipation).divide(totalParticipation);
+                    BigDecimal amount = new BigDecimal(payoutAmount.multiply(partnerParticipation)).divide(new BigDecimal(totalParticipation), 0, BigDecimal.ROUND_DOWN);
+                    BigInteger amountBigInteger = amount.toBigInteger();
                     Address address = partner.getAddress();
 
-                    address.transfer(amount);
+                    address.transfer(amountBigInteger);
 
-                    partnerPayouts.add(new PartnerPayout(now, address, amount));
-                    emit(new PartnerPayoutEvent(now, address, amount));
+                    partnerPayouts.add(new PartnerPayout(now, address, amountBigInteger));
+                    emit(new PartnerPayoutEvent(now, address, amountBigInteger));
                 }
 
             }
 
             this.partnership.setTotalPayoutsAmount(this.partnership.getTotalPayoutsAmount().add(payoutAmount));
 
-            this.partnership.getLastPayouts().add(new Payout(now, payoutAmount, partnerPayouts));
+            this.partnership.getLastPayouts().put(now, new Payout(now, payoutAmount, partnerPayouts));
             emit(new PayoutEvent(now, payoutAmount, partnerPayouts));
 
         }
@@ -206,9 +210,9 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
     }
 
     @Override
-    public List<Payout> getPayoutList() {
+    public Collection<Payout> getPayoutList() {
 
-        return this.partnership.getLastPayouts();
+        return this.partnership.getLastPayoutList();
 
     }
 
@@ -217,7 +221,7 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
         require(payoutDate > 0, "payoutDate should be greater than 0");
 
-        Payout payout = Utils.findPayout(this.partnership.getLastPayouts(), payoutDate);
+        Payout payout = this.partnership.getLastPayouts().get(payoutDate);
 
         require(payout != null, "payout does not exists");
 
@@ -233,9 +237,9 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
     }
 
     @Override
-    public List<Partner> getPartnersList() {
+    public Collection<Partner> getPartnersList() {
 
-        return this.partnership.getPartners();
+        return this.partnership.getPartnerList();
 
     }
 
@@ -253,7 +257,7 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
         require(polling.getStatus() != PollingStatus.CLOSED, "This polling is already closed");
 
-        return this.pollingManager.getParticipantsPendingForVote(polling, this.partnership.getPartners());
+        return this.pollingManager.getParticipantsPendingForVote(polling, this.partnership.getPartnerList());
 
     }
 
@@ -286,7 +290,7 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
     @Override
     public void resolvePolling(long pollingId) {
 
-        Polling polling = this.pollingManager.resolvePolling(pollingId, this.partnership.getPartners());
+        Polling polling = this.pollingManager.resolvePolling(pollingId, this.partnership.getPartnerList());
 
         if (polling.getResult() == PollingResult.ACCEPTED) {
 
@@ -348,9 +352,9 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
     private void addPartner(Partner partner) {
 
-        if (!Utils.containsPartner(this.partnership.getPartners(), partner.getAddress())) {
+        if (!this.partnership.getPartners().containsKey(partner.getAddress().toString())) {
 
-            this.partnership.getPartners().add(partner);
+            this.partnership.getPartners().put(partner.getAddress().toString(), partner);
             emit(new NewPartnerEvent(partner));
 
         }
@@ -359,20 +363,17 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
     private void removePartner(Partner partner) {
 
-        Partner oldPartner = Utils.findPartner(this.partnership.getPartners(), partner.getAddress());
+        Partner oldPartner = this.partnership.getPartners().remove(partner.getAddress().toString());
 
         if (oldPartner != null) {
-
-            this.partnership.getPartners().remove(oldPartner);
             emit(new RemovePartnerEvent(partner));
-
         }
 
     }
 
     private void changePartnerParticipation(Partner partner) {
 
-        Partner oldPartner = Utils.findPartner(this.partnership.getPartners(), partner.getAddress());
+        Partner oldPartner = this.partnership.getPartners().get(partner.getAddress().toString());
 
         if (oldPartner != null) {
 
@@ -400,7 +401,7 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
         require(address != null, "address can not be empty");
         require(participation.compareTo(BigInteger.ZERO) >= 0, "participation should be greater or equal than 0");
         require(commission >= 0 && commission <= 100, "commission should be between [0, 100]");
-        require(!Utils.containsPartner(this.partnership.getPartners(), address), "address already belongs to a partner");
+        require(!this.partnership.getPartners().containsKey(address.toString()), "address already belongs to a partner");
 
         return new Partner(address, participation, commission);
 
@@ -421,7 +422,7 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
         require(address != null, "address can not be empty");
 
-        Partner partner = Utils.findPartner(this.partnership.getPartners(), address);
+        Partner partner = this.partnership.getPartners().get(address.toString());
 
         require(partner != null, "address doesn't belong to any partner");
 
@@ -441,13 +442,12 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
     }
 
-    private BigInteger getTotalParticipation(List<Partner> partners) {
+    private BigInteger getTotalParticipation(Collection<Partner> partners) {
 
         BigInteger totalParticipation = BigInteger.ZERO;
 
-        for (int i = 0; i < partners.size(); i++) {
+        for (Partner partner : partners) {
 
-            Partner partner = partners.get(i);
             totalParticipation = totalParticipation.add(BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100)))));
 
         }

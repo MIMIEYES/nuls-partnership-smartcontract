@@ -7,6 +7,7 @@ import com.gmail.amalcaraz89.partnership.model.Polling;
 import io.nuls.contract.sdk.Address;
 
 import java.math.BigInteger;
+import java.util.Collection;
 import java.util.List;
 
 public interface PartnershipManagerInterface {
@@ -33,13 +34,13 @@ public interface PartnershipManagerInterface {
 
     void checkForPayout();
 
-    List<Payout> getPayoutList();
+    Collection<Payout> getPayoutList();
 
     Payout getPayoutDetail(long payoutDate);
 
     Partnership getPartnershipDetail();
 
-    List<Partner> getPartnersList();
+    Collection<Partner> getPartnersList();
 
     Partner getPartnerDetail(Address address);
 

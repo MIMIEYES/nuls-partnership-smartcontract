@@ -4,6 +4,7 @@ import com.gmail.amalcaraz89.partnership.model.Partner;
 import com.gmail.amalcaraz89.partnership.model.Polling;
 import io.nuls.contract.sdk.Address;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface PollingManagerInterface {
@@ -12,7 +13,7 @@ public interface PollingManagerInterface {
 
     Polling vote(long pollingId, Partner partner, boolean vote);
 
-    Polling resolvePolling(long pollingId, List<Partner> participants);
+    Polling resolvePolling(long pollingId, Collection<Partner> participants);
 
     List<Polling> getPollingList();
 
@@ -20,6 +21,6 @@ public interface PollingManagerInterface {
 
     Polling getPollingDetail(long pollingId);
 
-    List<Partner> getParticipantsPendingForVote(Polling polling, List<Partner> participants);
+    List<Partner> getParticipantsPendingForVote(Polling polling, Collection<Partner> participants);
 
 }

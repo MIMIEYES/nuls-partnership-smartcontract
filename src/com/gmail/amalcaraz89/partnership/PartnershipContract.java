@@ -15,6 +15,7 @@ import io.nuls.contract.sdk.annotation.View;
 import io.nuls.contract.sdk.annotation.Required;
 
 import java.math.BigInteger;
+import java.util.Collection;
 import java.util.List;
 
 public class PartnershipContract implements Contract {
@@ -25,10 +26,15 @@ public class PartnershipContract implements Contract {
     public PartnershipContract(
             @Required String title,
             @Required String desc,
+            // 佣金比例
             @Required double nodeCommission,
+            // 支付间隔
             @Required long payoutInterval,
+            // 初始保证金
             @Required double initialDeposit,
+            // 参与百分比解决投票问题
             @Required double percentageOfParticipationToResolvePolling,
+            // 正投票的百分比接受投票
             @Required double percentageOfPositiveVotesToAcceptPolling
     ) {
 
@@ -145,7 +151,7 @@ public class PartnershipContract implements Contract {
     }
 
     @View
-    public List<Partner> viewPartnersList() {
+    public Collection<Partner> viewPartnersList() {
 
         return this.partnershipManager.getPartnersList();
 
@@ -187,7 +193,7 @@ public class PartnershipContract implements Contract {
     }
 
     @View
-    public List<Payout> viewPayoutList() {
+    public Collection<Payout> viewPayoutList() {
 
         return this.partnershipManager.getPayoutList();
 
@@ -201,7 +207,7 @@ public class PartnershipContract implements Contract {
     }
 
     @View
-    public List<Payout> viewNextPayoutPreviewList() {
+    public Collection<Payout> viewNextPayoutPreviewList() {
 
         return this.partnershipManager.getPayoutList();
 

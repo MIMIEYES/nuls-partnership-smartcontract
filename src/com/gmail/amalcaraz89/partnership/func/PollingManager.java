@@ -8,10 +8,7 @@ import com.gmail.amalcaraz89.partnership.model.Polling;
 import io.nuls.contract.sdk.Address;
 import io.nuls.contract.sdk.Block;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.nuls.contract.sdk.Utils.emit;
 import static io.nuls.contract.sdk.Utils.require;
@@ -39,10 +36,12 @@ public class PollingManager implements PollingManagerInterface {
 
         Polling polling = Utils.findPolling(pollingMap, partner.getAddress(), null, PollingStatus.OPEN, -1, -1);
 
+        // 此地址已参与投票等待批准
         require(polling == null, "This address is already involved in a polling waiting for approval");
 
         Polling pollingByInitiator = Utils.findPolling(pollingMap, null, initiator, PollingStatus.OPEN, -1, -1);
 
+        // 该地址已经启动了一项等待审批的投票
         require(pollingByInitiator == null, "This address already initiated a polling which is waiting for approval");
 
         long pollingId = (long) (pollingMap.size() + 1);
@@ -95,7 +94,7 @@ public class PollingManager implements PollingManagerInterface {
     }
 
     @Override
-    public Polling resolvePolling(long pollingId, List<Partner> participants) {
+    public Polling resolvePolling(long pollingId, Collection<Partner> participants) {
 
         Polling polling = this.getPolling(pollingId);
 
@@ -161,15 +160,13 @@ public class PollingManager implements PollingManagerInterface {
     }
 
     @Override
-    public List<Partner> getParticipantsPendingForVote(Polling polling, List<Partner> participants) {
+    public List<Partner> getParticipantsPendingForVote(Polling polling, Collection<Partner> participants) {
 
         List<Partner> pendingPartners = new ArrayList<Partner>();
 
         Map<Address, Boolean> votes = polling.getVotes();
 
-        for (int i = 0; i < participants.size(); i++) {
-
-            Partner participant = participants.get(i);
+        for (Partner participant : participants) {
 
             if (this.participantAllowedToVote(polling, participant) && votes.get(participant.getAddress()) == null) {
 
@@ -212,16 +209,15 @@ public class PollingManager implements PollingManagerInterface {
 
     }
 
-    private boolean getPollingResult(Polling polling, List<Partner> participants) {
+    private boolean getPollingResult(Polling polling, Collection<Partner> participants) {
 
         Map<Address, Boolean> votes = polling.getVotes();
         int totalPartnersCount = participants.size();
         int totalVotesCount = 0;
         int positiveVotesCount = 0;
 
-        for (int i = 0; i < totalPartnersCount; i++) {
+        for (Partner participant : participants) {
 
-            Partner participant = participants.get(i);
             Boolean vote = votes.get(participant.getAddress());
 
             if (vote != null) {
