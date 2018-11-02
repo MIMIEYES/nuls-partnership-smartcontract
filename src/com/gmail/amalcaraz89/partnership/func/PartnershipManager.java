@@ -1,15 +1,7 @@
 package com.gmail.amalcaraz89.partnership.func;
 
-import com.gmail.amalcaraz89.partnership.event.NewPartnerEvent;
-import com.gmail.amalcaraz89.partnership.event.PartnerPayoutEvent;
-import com.gmail.amalcaraz89.partnership.event.PayoutEvent;
-import com.gmail.amalcaraz89.partnership.event.RemovePartnerEvent;
-import com.gmail.amalcaraz89.partnership.event.ChangePartnerParticipationEvent;
-import com.gmail.amalcaraz89.partnership.model.Partner;
-import com.gmail.amalcaraz89.partnership.model.PartnerPayout;
-import com.gmail.amalcaraz89.partnership.model.Partnership;
-import com.gmail.amalcaraz89.partnership.model.Payout;
-import com.gmail.amalcaraz89.partnership.model.Polling;
+import com.gmail.amalcaraz89.partnership.event.*;
+import com.gmail.amalcaraz89.partnership.model.*;
 import io.nuls.contract.sdk.Address;
 import io.nuls.contract.sdk.Block;
 import io.nuls.contract.sdk.Msg;
@@ -26,9 +18,10 @@ import static io.nuls.contract.sdk.Utils.require;
 public class PartnershipManager extends Owner implements PartnershipManagerInterface {
 
     // TODO: make it configurable
+    //private final static long RESCUE_MIN_WAIT = 1000L * 60 * 60;
+    //private final static long MIN_PAYOUT_INTERVAL = 1000L * 60 * 1;
     private final static long RESCUE_MIN_WAIT = 1000L * 60 * 60 * 24 * 30;
-    private final static long MIN_PAYOUT_INTERVAL = 1000L * 60 * 5;
-    // private final static long MIN_PAYOUT_INTERVAL = 1000L * 60 * 60;
+    private final static long MIN_PAYOUT_INTERVAL = 1000L * 60 * 60;
     private Partnership partnership;
     private PollingManagerInterface pollingManager;
 
@@ -47,8 +40,8 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
         require(title != null, "title can not be empty");
         require(desc != null, "desc can not be empty");
         require(nodeCommission >= 10 && nodeCommission <= 100, "nodeCommission should be between [10, 100]");
-        //require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 1 hour");
-        require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 5 minutes");
+        require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 1 hour");
+        //require(payoutInterval >= MIN_PAYOUT_INTERVAL, "payoutInterval should be greater or equal than 1 minutes");
 
         this.partnership = new Partnership(title, desc, nodeCommission, payoutInterval);
         this.pollingManager = new PollingManager(percentageOfParticipationToResolvePolling, percentageOfPositiveVotesToAcceptPolling);
@@ -179,9 +172,19 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
             Collection<Partner> partners = this.partnership.getPartnerList();
             BigInteger totalParticipation = this.getTotalParticipation(partners);
 
+            boolean isFirst = true;
+            BigInteger partnerParticipation;
             for (Partner partner : partners) {
+                if(isFirst) {
+                    isFirst = false;
+                    partnerParticipation = partner.getParticipation();
+                    partnerParticipation = partnerParticipation.add(
+                        BigInteger.valueOf(
+                            (long)(totalParticipation.subtract(partnerParticipation).doubleValue() * (this.partnership.getNodeCommission() / 100))));
+                } else {
+                    partnerParticipation = BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100))));
+                }
 
-                BigInteger partnerParticipation = BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100))));
 
                 if (partnerParticipation.compareTo(BigInteger.ZERO) > 0) {
 
@@ -189,7 +192,6 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
                     BigDecimal amount = new BigDecimal(payoutAmount.multiply(partnerParticipation)).divide(new BigDecimal(totalParticipation), 0, BigDecimal.ROUND_DOWN);
                     BigInteger amountBigInteger = amount.toBigInteger();
                     Address address = partner.getAddress();
-
                     address.transfer(amountBigInteger);
 
                     partnerPayouts.add(new PartnerPayout(now, address, amountBigInteger));
@@ -438,7 +440,8 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
     private double getPartnerCommission() {
 
-        return (100 - this.partnership.getNodeCommission());
+        //return (100 - this.partnership.getNodeCommission());
+        return this.partnership.getNodeCommission();
 
     }
 
@@ -448,7 +451,8 @@ public class PartnershipManager extends Owner implements PartnershipManagerInter
 
         for (Partner partner : partners) {
 
-            totalParticipation = totalParticipation.add(BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100)))));
+            //totalParticipation = totalParticipation.add(BigInteger.valueOf((long) (partner.getParticipation().doubleValue() * (1 - (partner.getCommision() / 100)))));
+            totalParticipation = totalParticipation.add(partner.getParticipation());
 
         }
 
